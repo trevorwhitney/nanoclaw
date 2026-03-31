@@ -10,6 +10,7 @@ import {
 } from './container-runner.js';
 import {
   getAllTasks,
+  getChatChannel,
   getDueTasks,
   getTaskById,
   logTaskRun,
@@ -170,6 +171,7 @@ async function runTask(
   };
 
   try {
+    const channel = getChatChannel(task.chat_jid);
     const output = await runContainerAgent(
       group,
       {
@@ -181,6 +183,7 @@ async function runTask(
         isScheduledTask: true,
         assistantName: ASSISTANT_NAME,
         script: task.script || undefined,
+        channel: channel || undefined,
       },
       (proc, containerName) =>
         deps.onProcess(task.chat_jid, proc, containerName, task.group_folder),

@@ -4,6 +4,7 @@
  */
 import { ChildProcess, exec, spawn } from 'child_process';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 import {
@@ -43,6 +44,7 @@ export interface ContainerInput {
   isScheduledTask?: boolean;
   assistantName?: string;
   script?: string;
+  channel?: string;
 }
 
 export interface ContainerOutput {
@@ -85,6 +87,16 @@ function buildVolumeMounts(
       mounts.push({
         hostPath: '/dev/null',
         containerPath: '/workspace/project/.env',
+        readonly: true,
+      });
+    }
+
+    // Mount GitHub CLI config for authentication sharing (main group only)
+    const ghConfigDir = path.join(os.homedir(), '.config', 'gh');
+    if (fs.existsSync(ghConfigDir)) {
+      mounts.push({
+        hostPath: ghConfigDir,
+        containerPath: '/home/node/.config/gh',
         readonly: true,
       });
     }
@@ -230,6 +242,9 @@ async function buildContainerArgs(
 ): Promise<string[]> {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
+  // Use host networking for direct access to host services (OneCLI, etc.)
+  args.push('--network=host');
+
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
 
@@ -241,6 +256,14 @@ async function buildContainerArgs(
   });
   if (onecliApplied) {
     logger.info({ containerName }, 'OneCLI gateway config applied');
+
+    // Mount OneCLI CA certificate so container trusts the proxy
+    const projectRoot = process.cwd();
+    const caCertPath = path.join(projectRoot, 'data/onecli/ca.pem');
+    if (fs.existsSync(caCertPath)) {
+      args.push('-v', `${caCertPath}:/etc/onecli-ca.pem:ro`);
+      args.push('-e', 'NODE_EXTRA_CA_CERTS=/etc/onecli-ca.pem');
+    }
   } else {
     logger.warn(
       { containerName },

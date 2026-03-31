@@ -11,6 +11,7 @@ import {
   IDLE_TIMEOUT,
   ONECLI_URL,
   POLL_INTERVAL,
+  TELEGRAM_BOT_POOL,
   TIMEZONE,
 } from './config.js';
 import './channels/index.js';
@@ -33,6 +34,7 @@ import {
   getAllRegisteredGroups,
   getAllSessions,
   getAllTasks,
+  getChatChannel,
   getMessagesSince,
   getNewMessages,
   getRouterState,
@@ -43,6 +45,7 @@ import {
   storeChatMetadata,
   storeMessage,
 } from './db.js';
+import { initBotPool } from './channels/telegram.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
@@ -358,6 +361,7 @@ async function runAgent(
     : undefined;
 
   try {
+    const channel = getChatChannel(chatJid);
     const output = await runContainerAgent(
       group,
       {
@@ -367,6 +371,7 @@ async function runAgent(
         chatJid,
         isMain,
         assistantName: ASSISTANT_NAME,
+        channel: channel || undefined,
       },
       (proc, containerName) =>
         queue.registerProcess(chatJid, proc, containerName, group.folder),
@@ -629,7 +634,7 @@ async function main(): Promise<void> {
   // Factories return null when credentials are missing, so unconfigured channels are skipped.
   for (const channelName of getRegisteredChannelNames()) {
     const factory = getChannelFactory(channelName)!;
-    const channel = factory(channelOpts);
+    const channel = await factory(channelOpts);
     if (!channel) {
       logger.warn(
         { channel: channelName },
@@ -643,6 +648,11 @@ async function main(): Promise<void> {
   if (channels.length === 0) {
     logger.fatal('No channels connected');
     process.exit(1);
+  }
+
+  // Initialize Telegram bot pool for agent swarms
+  if (TELEGRAM_BOT_POOL.length > 0) {
+    await initBotPool(TELEGRAM_BOT_POOL);
   }
 
   // Start subsystems (independently of connection handler)

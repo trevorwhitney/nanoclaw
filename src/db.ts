@@ -248,6 +248,17 @@ export function getAllChats(): ChatInfo[] {
 }
 
 /**
+ * Get channel for a specific chat JID.
+ * Returns null if chat not found or channel not set.
+ */
+export function getChatChannel(jid: string): string | null {
+  const row = db
+    .prepare(`SELECT channel FROM chats WHERE jid = ?`)
+    .get(jid) as { channel: string | null } | undefined;
+  return row?.channel || null;
+}
+
+/**
  * Get timestamp of last group metadata sync.
  */
 export function getLastGroupSync(): string | null {
