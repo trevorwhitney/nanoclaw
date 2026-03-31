@@ -75,9 +75,7 @@ export class AgentMailChannel implements Channel {
       );
 
       console.log(`\n  AgentMail inbox: ${this.inboxEmail}`);
-      console.log(
-        `  Inbox ID (for registration): am:${this.inboxId}`,
-      );
+      console.log(`  Inbox ID (for registration): am:${this.inboxId}`);
       console.log(
         `  Send emails to ${this.inboxEmail} to interact with ${ASSISTANT_NAME}\n`,
       );
@@ -95,10 +93,7 @@ export class AgentMailChannel implements Channel {
 
   private startPolling(): void {
     // Poll every 10 seconds
-    this.pollingInterval = setInterval(
-      () => this.pollMessages(),
-      10000,
-    );
+    this.pollingInterval = setInterval(() => this.pollMessages(), 10000);
 
     // Do an immediate poll on connect
     void this.pollMessages();
@@ -108,13 +103,10 @@ export class AgentMailChannel implements Channel {
     if (!this.inboxId) return;
 
     try {
-      const response = await this.client.inboxes.messages.list(
-        this.inboxId,
-        {
-          limit: 20,
-          pageToken: this.pageToken,
-        },
-      );
+      const response = await this.client.inboxes.messages.list(this.inboxId, {
+        limit: 20,
+        pageToken: this.pageToken,
+      });
 
       // Process messages in reverse order (oldest first)
       const messages = [...response.messages].reverse();

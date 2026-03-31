@@ -95,7 +95,9 @@ export const TIMEZONE = resolveConfigTimezone();
 
 // Telegram bot pool for agent swarms
 export const TELEGRAM_BOT_POOL = (
-  process.env.TELEGRAM_BOT_POOL || envConfig.TELEGRAM_BOT_POOL || ''
+  process.env.TELEGRAM_BOT_POOL ||
+  envConfig.TELEGRAM_BOT_POOL ||
+  ''
 )
   .split(',')
   .map((t) => t.trim())

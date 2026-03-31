@@ -252,9 +252,9 @@ export function getAllChats(): ChatInfo[] {
  * Returns null if chat not found or channel not set.
  */
 export function getChatChannel(jid: string): string | null {
-  const row = db
-    .prepare(`SELECT channel FROM chats WHERE jid = ?`)
-    .get(jid) as { channel: string | null } | undefined;
+  const row = db.prepare(`SELECT channel FROM chats WHERE jid = ?`).get(jid) as
+    | { channel: string | null }
+    | undefined;
   return row?.channel || null;
 }
 
