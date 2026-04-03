@@ -101,6 +101,16 @@ function buildVolumeMounts(
       });
     }
 
+    // Mount user-local binaries (e.g., grafana-assistant, custom tools)
+    const localBinDir = path.join(os.homedir(), '.local', 'bin');
+    if (fs.existsSync(localBinDir)) {
+      mounts.push({
+        hostPath: localBinDir,
+        containerPath: '/home/node/.local/bin',
+        readonly: true,
+      });
+    }
+
     // Main also gets its group folder as the working directory
     mounts.push({
       hostPath: groupDir,
@@ -125,6 +135,17 @@ function buildVolumeMounts(
         readonly: true,
       });
     }
+  }
+
+  // Mount full Nix store for all groups on NixOS systems
+  // This provides access to nix commands and the entire package ecosystem
+  const nixStore = '/nix';
+  if (fs.existsSync(nixStore)) {
+    mounts.push({
+      hostPath: nixStore,
+      containerPath: '/nix',
+      readonly: true,
+    });
   }
 
   // Per-group Claude sessions directory (isolated from other groups)

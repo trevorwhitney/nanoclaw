@@ -111,21 +111,51 @@ export class TelegramChannel implements Channel {
       // Translate Telegram @bot_username mentions into TRIGGER_PATTERN format.
       // Telegram @mentions (e.g., @andy_ai_bot) won't match TRIGGER_PATTERN
       // (e.g., ^@Andy\b), so we prepend the trigger when the bot is @mentioned.
+      // Also check for pool bot mentions to route to specific subagents.
       const botUsername = ctx.me?.username?.toLowerCase();
-      if (botUsername) {
+      let mentionedPoolSender: string | undefined;
+      let poolBotMentionText: string | undefined;
+
+      if (botUsername || poolBotInfo.length > 0) {
         const entities = ctx.message.entities || [];
-        const isBotMentioned = entities.some((entity) => {
+
+        for (const entity of entities) {
           if (entity.type === 'mention') {
             const mentionText = content
               .substring(entity.offset, entity.offset + entity.length)
               .toLowerCase();
-            return mentionText === `@${botUsername}`;
+
+            // Check if this is the main bot
+            if (botUsername && mentionText === `@${botUsername}`) {
+              if (!TRIGGER_PATTERN.test(content)) {
+                content = `@${ASSISTANT_NAME} ${content}`;
+              }
+            }
+
+            // Check if this is a pool bot
+            const poolBotUsername = mentionText.substring(1); // Remove '@'
+            const poolSender = botUsernameToSender.get(poolBotUsername);
+            if (poolSender) {
+              mentionedPoolSender = poolSender;
+              poolBotMentionText = mentionText;
+              // Prepend trigger if not already present
+              if (!TRIGGER_PATTERN.test(content)) {
+                content = `@${ASSISTANT_NAME} ${content}`;
+              }
+              break; // Use the first pool bot mention found
+            }
           }
-          return false;
-        });
-        if (isBotMentioned && !TRIGGER_PATTERN.test(content)) {
-          content = `@${ASSISTANT_NAME} ${content}`;
         }
+      }
+
+      // If a pool bot was mentioned, replace its @username with @SenderName
+      // so the agent knows this message is directed at a specific subagent role
+      if (mentionedPoolSender && poolBotMentionText) {
+        // Replace the bot's @username with the sender name (role name)
+        content = content.replace(
+          poolBotMentionText,
+          `@${mentionedPoolSender}`,
+        );
       }
 
       // Store chat metadata for discovery
@@ -307,8 +337,12 @@ export class TelegramChannel implements Channel {
 
 // Bot pool for agent teams: send-only Api instances (no polling)
 const poolApis: Api[] = [];
+// Pool bot metadata: username and bot ID for each pool bot
+const poolBotInfo: Array<{ username: string; id: number }> = [];
 // Maps "{groupFolder}:{senderName}" → pool Api index for stable assignment
 const senderBotMap = new Map<string, number>();
+// Maps pool bot username → sender name (e.g., "researcher_bot" → "Researcher")
+const botUsernameToSender = new Map<string, string>();
 let nextPoolIndex = 0;
 
 /**
@@ -321,6 +355,7 @@ export async function initBotPool(tokens: string[]): Promise<void> {
       const api = new Api(token);
       const me = await api.getMe();
       poolApis.push(api);
+      poolBotInfo.push({ username: me.username || '', id: me.id });
       logger.info(
         { username: me.username, id: me.id, poolSize: poolApis.length },
         'Pool bot initialized',
@@ -362,8 +397,13 @@ export async function sendPoolMessage(
     try {
       await poolApis[idx].setMyName(sender);
       await new Promise((r) => setTimeout(r, 2000));
+      // Track the mapping from bot username to sender name for @ mention routing
+      const botInfo = poolBotInfo[idx];
+      if (botInfo && botInfo.username) {
+        botUsernameToSender.set(botInfo.username.toLowerCase(), sender);
+      }
       logger.info(
-        { sender, groupFolder, poolIndex: idx },
+        { sender, groupFolder, poolIndex: idx, botUsername: botInfo?.username },
         'Assigned and renamed pool bot',
       );
     } catch (err) {
@@ -396,6 +436,20 @@ export async function sendPoolMessage(
   } catch (err) {
     logger.error({ chatId, sender, err }, 'Failed to send pool message');
   }
+}
+
+/**
+ * Get information about pool bots for debugging.
+ * Returns array of pool bot info and the username→sender mapping.
+ */
+export function getPoolBotInfo(): {
+  bots: Array<{ username: string; id: number }>;
+  usernameToSender: Map<string, string>;
+} {
+  return {
+    bots: [...poolBotInfo],
+    usernameToSender: new Map(botUsernameToSender),
+  };
 }
 
 registerChannel('telegram', (opts: ChannelOpts) => {

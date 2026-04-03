@@ -50,6 +50,9 @@ RUN curl -sS https://downloads.1password.com/linux/keys/1password.asc | gpg --de
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
+# Add user-local bin directory and NixOS system bin to PATH (appended to avoid superseding container binaries)
+ENV PATH="${PATH}:/home/node/.local/bin:/nix/bin"
+
 # Install agent-browser and claude-code globally
 RUN npm install -g agent-browser @anthropic-ai/claude-code
 
